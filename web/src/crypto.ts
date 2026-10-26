@@ -101,13 +101,25 @@ export function md5Hex(input: string | Uint8Array): string {
   return bytesToHex(md5Bytes(bytes));
 }
 
-export async function sha1Hex(data: ArrayBuffer | Uint8Array | Blob): Promise<string> {
+async function shaHex(algorithm: AlgorithmIdentifier, data: ArrayBuffer | Uint8Array | Blob): Promise<string> {
   if (!globalThis.crypto?.subtle) {
-    throw new Error("WebCrypto no está disponible. WebPrism necesita un contexto seguro (HTTPS o localhost) para verificar SHA-1.");
+    throw new Error("WebCrypto no está disponible. WebPrism necesita un contexto seguro (HTTPS o localhost) para verificar hashes.");
   }
   const buffer = data instanceof Blob ? await data.arrayBuffer() : data instanceof Uint8Array ? data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer : data;
-  const digest = await crypto.subtle.digest("SHA-1", buffer);
+  const digest = await crypto.subtle.digest(algorithm, buffer);
   return bytesToHex(new Uint8Array(digest));
+}
+
+export async function sha1Hex(data: ArrayBuffer | Uint8Array | Blob): Promise<string> {
+  return shaHex("SHA-1", data);
+}
+
+export async function sha256Hex(data: ArrayBuffer | Uint8Array | Blob): Promise<string> {
+  return shaHex("SHA-256", data);
+}
+
+export async function sha512Hex(data: ArrayBuffer | Uint8Array | Blob): Promise<string> {
+  return shaHex("SHA-512", data);
 }
 
 /**

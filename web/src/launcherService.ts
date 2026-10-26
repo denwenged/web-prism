@@ -23,6 +23,7 @@ import {
 } from "./mojang";
 import { cheerpjAppPath, opfs } from "./opfs";
 import { slugifyInstanceId } from "./prism";
+import { PrismMetaService } from "./prismMeta";
 import type { InstanceSummary, LogListener, ProgressListener } from "./types";
 
 const MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
@@ -61,6 +62,7 @@ export interface LaunchPlan {
 
 interface LauncherServiceOptions {
   proxyBase: () => string;
+  prismMeta: PrismMetaService;
   concurrency: () => number;
   log: LogListener;
 }
@@ -155,20 +157,62 @@ export class LauncherService {
     let profile = await resolveVersionProfile(instance.minecraftVersion, this);
     const missingPatchComponents: string[] = [];
 
+    const queuedPatches: Array<{ uid: string; patch: PrismPatchJson; label: string }> = [];
+    const queuedPatchUids = new Set<string>();
+    const queuePatch = (uid: string, patch: PrismPatchJson, version?: string) => {
+      if (queuedPatchUids.has(uid)) return;
+      queuedPatchUids.add(uid);
+      queuedPatches.push({ uid, patch, label: `${uid}@${patch.version ?? version ?? "?"}` });
+    };
+
     for (const component of instance.components) {
       if (component.disabled || component.uid === "net.minecraft") continue;
+      // The Mojang profile already contains its LWJGL libraries. Prism's
+      // org.lwjgl(3) meta component is a version selector in mmc-pack.json;
+      // applying its patch here would be wrong for old LWJGL2 profiles.
+      if (component.uid === "org.lwjgl" || component.uid === "org.lwjgl3") continue;
+
+      const requestedVersion = component.version ?? component.cachedVersion;
       const patchPath = `${instanceRoot(instance.id)}/patches/${component.uid}.json`;
-      const patch = await opfs.readOptionalJson<PrismPatchJson>(patchPath);
-      if (!patch) {
+      const localPatch = await opfs.readOptionalJson<PrismPatchJson>(patchPath);
+      if (localPatch) {
+        queuePatch(component.uid, localPatch, requestedVersion);
+        continue;
+      }
+      if (!requestedVersion) {
         missingPatchComponents.push(component.uid);
         continue;
       }
-      profile = applyPrismPatch(profile, patch);
+      try {
+        const resolvedSet = await this.serviceOptions.prismMeta.resolveComponent(
+          component.uid,
+          requestedVersion,
+          instance.minecraftVersion,
+        );
+        for (const resolvedComponent of resolvedSet) {
+          queuePatch(resolvedComponent.uid, resolvedComponent.patch, resolvedComponent.version);
+          await opfs
+            .writeJson(`${instanceRoot(instance.id)}/patches/${resolvedComponent.uid}.json`, resolvedComponent.patch)
+            .catch(() => undefined);
+        }
+        this.serviceOptions.log(`Patch Prism Meta descargado para ${component.uid}@${requestedVersion}.`);
+      } catch (error) {
+        missingPatchComponents.push(`${component.uid}@${requestedVersion}`);
+        this.serviceOptions.log(
+          `No se pudo obtener el patch de ${component.uid}@${requestedVersion} desde Prism Meta: ${error instanceof Error ? error.message : String(error)}`,
+          "warn",
+        );
+      }
+    }
+
+    for (const queued of queuedPatches) {
+      profile = applyPrismPatch(profile, queued.patch);
+      this.serviceOptions.log(`Patch Prism aplicado: ${queued.label}.`);
     }
 
     if (missingPatchComponents.length) {
       profile.warnings.push(
-        `Componente(s) sin patch local en patches/: ${missingPatchComponents.join(", ")}. Prism de escritorio los resuelve desde su servidor meta; WebPrism aún no implementa ese resolutor, así que ese loader puede no arrancar.`,
+        `Componente(s) sin patch disponible: ${missingPatchComponents.join(", ")}. Revisa Editar → Versión para reinstalar el loader desde Prism Meta.`,
       );
     }
 
@@ -377,7 +421,7 @@ export class LauncherService {
       auth_username: options.username,
       auth_uuid: uuid,
       auth_access_token: "0",
-      auth_session: "offline",
+      auth_session: "-",
       user_properties: "{}",
       user_type: "legacy",
       version_name: profile.id,

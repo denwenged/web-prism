@@ -1,4 +1,4 @@
-export type BackendId = "auto" | "cheerpj" | "aot";
+export type BackendId = "auto" | "cheerpj" | "aot" | "manage";
 
 export interface WebPrismInstanceSidecar {
   formatVersion: 1;
@@ -13,6 +13,12 @@ export interface WebPrismInstanceSidecar {
   linkedLocalName?: string;
 }
 
+export interface PrismRequirement {
+  uid: string;
+  equals?: string;
+  suggests?: string;
+}
+
 export interface InstanceSummary {
   id: string;
   name: string;
@@ -23,7 +29,12 @@ export interface InstanceSummary {
   sidecar: WebPrismInstanceSidecar;
   gameDirName: "minecraft" | ".minecraft";
   modCount: number;
+  resourcePackCount: number;
+  shaderPackCount: number;
+  dataPackCount: number;
   saveCount: number;
+  lastLaunchTime: number;
+  totalTimePlayed: number;
 }
 
 export interface PrismComponent {
@@ -31,6 +42,8 @@ export interface PrismComponent {
   version?: string;
   cachedVersion?: string;
   cachedName?: string;
+  cachedRequires?: PrismRequirement[];
+  cachedConflicts?: PrismRequirement[];
   dependencyOnly?: boolean;
   important?: boolean;
   disabled?: boolean;
@@ -60,7 +73,9 @@ export type LogListener = (line: string, level?: "info" | "warn" | "error" | "ok
 
 export interface LauncherSettings {
   username: string;
+  eulaAccepted: boolean;
   proxyBase: string;
+  prismMetaBaseUrl: string;
   cheerpjLoaderUrl: string;
   aotUrls: Record<string, string>;
   concurrency: number;
@@ -68,7 +83,9 @@ export interface LauncherSettings {
 
 export const DEFAULT_SETTINGS: LauncherSettings = {
   username: "Steve",
+  eulaAccepted: false,
   proxyBase: "/api/proxy?url=",
+  prismMetaBaseUrl: "https://meta.prismlauncher.org/v1/",
   cheerpjLoaderUrl: "https://cjrtnc.leaningtech.com/4.3/loader.js",
   aotUrls: {},
   concurrency: 8,

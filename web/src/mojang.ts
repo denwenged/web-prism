@@ -67,10 +67,21 @@ export interface VersionJson {
   [key: string]: unknown;
 }
 
+export interface PrismMetaRequirement {
+  uid: string;
+  equals?: string;
+  suggests?: string;
+}
+
 export interface PrismPatchJson extends VersionJson {
   uid?: string;
   fileId?: string;
   version?: string;
+  name?: string;
+  order?: number;
+  requires?: PrismMetaRequirement[];
+  conflicts?: PrismMetaRequirement[];
+  mcVersion?: string;
   "+libraries"?: LibraryJson[];
   "+tweakers"?: string[];
   "+traits"?: string[];

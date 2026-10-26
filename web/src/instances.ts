@@ -1,15 +1,27 @@
+import type { PrismPatchJson } from "./mojang";
 import { opfs } from "./opfs";
 import {
   createInstanceCfg,
   createPackProfile,
+  describeComponent,
   packProfileMinecraftVersion,
   parseInstanceCfg,
   parsePackProfile,
+  removePackComponents,
   serializeInstanceCfg,
   setPackProfileMinecraftVersion,
   slugifyInstanceId,
+  upsertPackComponents,
 } from "./prism";
-import type { BackendId, InstanceSettings, InstanceSummary, PrismPackProfile, WebPrismInstanceSidecar } from "./types";
+import type {
+  BackendId,
+  InstanceSettings,
+  InstanceSummary,
+  PrismComponent,
+  PrismPackProfile,
+  PrismRequirement,
+  WebPrismInstanceSidecar,
+} from "./types";
 
 export const INSTANCES_ROOT = "instances";
 export const CACHE_ROOT = "cache";
@@ -45,13 +57,27 @@ async function countDirFiles(path: string, extensions?: string[]): Promise<numbe
     if (entry.kind !== "file") return false;
     if (!extensions) return true;
     const lower = entry.name.toLowerCase();
-    return extensions.some((extension) => lower.endsWith(extension));
+    const enabledName = lower.endsWith(".disabled") ? lower.slice(0, -".disabled".length) : lower;
+    return extensions.some((extension) => enabledName.endsWith(extension));
   }).length;
 }
 
 async function countSaves(gameRoot: string): Promise<number> {
   const saves = await opfs.list(`${gameRoot}/saves`);
   return saves.filter((entry) => entry.kind === "directory").length;
+}
+
+async function countDataPacks(gameRoot: string): Promise<number> {
+  let total = await countDirFiles(`${gameRoot}/datapacks`, [".zip"]);
+  const saves = await opfs.list(`${gameRoot}/saves`);
+  for (const save of saves) {
+    if (save.kind !== "directory") continue;
+    const dataPacksPath = `${gameRoot}/saves/${save.name}/datapacks`;
+    total += await countDirFiles(dataPacksPath, [".zip"]);
+    const entries = await opfs.list(dataPacksPath);
+    total += entries.filter((entry) => entry.kind === "directory").length;
+  }
+  return total;
 }
 
 export async function loadInstance(id: string): Promise<InstanceSummary | null> {
@@ -82,8 +108,13 @@ export async function loadInstance(id: string): Promise<InstanceSummary | null> 
     components: pack?.components ?? [],
     sidecar,
     gameDirName,
-    modCount: await countDirFiles(`${gameRoot}/mods`, [".jar", ".zip", ".litemod"]),
+    modCount: await countDirFiles(`${gameRoot}/mods`, [".jar", ".zip", ".litemod", ".nilmod"]),
+    resourcePackCount: await countDirFiles(`${gameRoot}/resourcepacks`, [".zip"]),
+    shaderPackCount: await countDirFiles(`${gameRoot}/shaderpacks`, [".zip"]),
+    dataPackCount: await countDataPacks(gameRoot),
     saveCount: await countSaves(gameRoot),
+    lastLaunchTime: Number.parseInt(settings.lastLaunchTime ?? "0", 10) || 0,
+    totalTimePlayed: Number.parseInt(settings.totalTimePlayed ?? "0", 10) || 0,
   };
 }
 
@@ -125,6 +156,9 @@ export async function createInstance(options: CreateInstanceOptions): Promise<In
   await opfs.ensureDir(`${root}/minecraft/mods`);
   await opfs.ensureDir(`${root}/minecraft/saves`);
   await opfs.ensureDir(`${root}/minecraft/resourcepacks`);
+  await opfs.ensureDir(`${root}/minecraft/shaderpacks`);
+  await opfs.ensureDir(`${root}/minecraft/datapacks`);
+  await opfs.ensureDir(`${root}/minecraft/texturepacks`);
   await opfs.ensureDir(`${root}/minecraft/config`);
   await opfs.ensureDir(`${root}/patches`);
   await opfs.writeText(`${root}/instance.cfg`, createInstanceCfg(options.name));
@@ -144,6 +178,73 @@ export async function updateInstanceVersion(instance: InstanceSummary, minecraft
   await opfs.writeJson(`${root}/mmc-pack.json`, setPackProfileMinecraftVersion(pack, minecraftVersion));
   const updated = await loadInstance(instance.id);
   if (!updated) throw new Error("No se pudo recargar la instancia tras cambiar la versión.");
+  return updated;
+}
+
+export interface ComponentInstallInput {
+  uid: string;
+  version: string;
+  name?: string;
+  patch: PrismPatchJson;
+  dependencyOnly?: boolean;
+  requires?: PrismRequirement[];
+  conflicts?: PrismRequirement[];
+}
+
+export async function readInstancePackProfile(id: string): Promise<PrismPackProfile | null> {
+  const text = await opfs.readOptionalText(`${instanceRoot(id)}/mmc-pack.json`);
+  return text ? parsePackProfile(text) : null;
+}
+
+export async function writeInstancePatch(id: string, uid: string, patch: PrismPatchJson): Promise<void> {
+  await opfs.writeJson(`${instanceRoot(id)}/patches/${uid}.json`, patch);
+}
+
+export async function installInstanceComponents(
+  id: string,
+  installs: ComponentInstallInput[],
+  removeUids: Iterable<string> = [],
+): Promise<InstanceSummary> {
+  const root = instanceRoot(id);
+  const current = await loadInstance(id);
+  if (!current) throw new Error("La instancia no existe.");
+  const pack = (await readInstancePackProfile(id)) ?? createPackProfile(current.minecraftVersion || "1.12.2");
+  const additions: PrismComponent[] = installs.map((install) => ({
+    uid: install.uid,
+    version: install.version,
+    cachedVersion: install.version,
+    cachedName: install.name ?? install.patch.name ?? describeComponent(install.uid),
+    cachedRequires: install.requires ?? install.patch.requires,
+    cachedConflicts: install.conflicts ?? install.patch.conflicts,
+    dependencyOnly: install.dependencyOnly ?? false,
+    disabled: false,
+  }));
+  const remove = new Set(removeUids);
+  await opfs.writeJson(`${root}/mmc-pack.json`, upsertPackComponents(pack, additions, remove));
+  for (const install of installs) {
+    await writeInstancePatch(id, install.uid, install.patch);
+  }
+  const installedUids = new Set(installs.map((install) => install.uid));
+  for (const uid of remove) {
+    if (!installedUids.has(uid)) await opfs.removeIfExists(`${root}/patches/${uid}.json`);
+  }
+  const updated = await loadInstance(id);
+  if (!updated) throw new Error("No se pudo recargar la instancia tras instalar componentes.");
+  return updated;
+}
+
+export async function removeInstanceComponents(id: string, uids: Iterable<string>, removePatchFiles = true): Promise<InstanceSummary> {
+  const root = instanceRoot(id);
+  const current = await loadInstance(id);
+  if (!current) throw new Error("La instancia no existe.");
+  const pack = (await readInstancePackProfile(id)) ?? createPackProfile(current.minecraftVersion || "1.12.2");
+  const remove = new Set(uids);
+  await opfs.writeJson(`${root}/mmc-pack.json`, removePackComponents(pack, remove));
+  if (removePatchFiles) {
+    for (const uid of remove) await opfs.removeIfExists(`${root}/patches/${uid}.json`);
+  }
+  const updated = await loadInstance(id);
+  if (!updated) throw new Error("No se pudo recargar la instancia tras quitar componentes.");
   return updated;
 }
 

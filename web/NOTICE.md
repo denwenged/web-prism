@@ -14,6 +14,10 @@ WebPrism itself is distributed under the same license as this repository
   MIT.
 - **TeaVM/Eaglercraft-style clients** are never bundled. If you configure an
   AOT bundle URL, you are responsible for the rights to host and use it.
+- The small Prism instance icon in `public/prismlauncher.svg` is copied from
+  this repository's own Prism Launcher resources. Mods, resource packs,
+  shader packs and data packs shown through the Modrinth integration remain
+  under their respective authors' licenses and are downloaded at runtime.
 
 ## Game files
 

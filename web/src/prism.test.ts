@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   createInstanceCfg,
   createPackProfile,
+  inferMinecraftVersionFromProfileId,
   packProfileMinecraftVersion,
   parseInstanceCfg,
   parsePackProfile,
+  removePackComponents,
   serializeInstanceCfg,
   setPackProfileMinecraftVersion,
   slugifyInstanceId,
+  upsertPackComponents,
 } from "./prism";
 
 describe("Prism formats", () => {
@@ -31,6 +34,33 @@ describe("Prism formats", () => {
     const updated = setPackProfileMinecraftVersion(profile, "1.8.9");
     expect(packProfileMinecraftVersion(updated)).toBe("1.8.9");
     expect(parsePackProfile(JSON.stringify(updated)).formatVersion).toBe(1);
+  });
+
+  it("installs loader components while removing the previous loader", () => {
+    const profile = upsertPackComponents(createPackProfile("1.20.1"), [
+      { uid: "net.minecraftforge", version: "47.2.0" },
+    ]);
+    const replaced = upsertPackComponents(
+      profile,
+      [
+        { uid: "net.fabricmc.intermediary", version: "1.20.1", dependencyOnly: true },
+        { uid: "net.fabricmc.fabric-loader", version: "0.16.0" },
+      ],
+      ["net.minecraftforge"],
+    );
+    expect(replaced.components.map((component) => component.uid)).toEqual([
+      "net.minecraft",
+      "net.fabricmc.intermediary",
+      "net.fabricmc.fabric-loader",
+    ]);
+    const removed = removePackComponents(replaced, ["net.fabricmc.fabric-loader", "net.fabricmc.intermediary"]);
+    expect(removed.components.map((component) => component.uid)).toEqual(["net.minecraft"]);
+  });
+
+  it("infers the game version from imported loader profile IDs", () => {
+    expect(inferMinecraftVersionFromProfileId("1.12.2-forge-14.23.5.2860")).toBe("1.12.2");
+    expect(inferMinecraftVersionFromProfileId("fabric-loader-0.16.10-1.20.1")).toBe("1.20.1");
+    expect(inferMinecraftVersionFromProfileId("24w14a")).toBe("24w14a");
   });
 
   it("rejects invalid pack profiles", () => {

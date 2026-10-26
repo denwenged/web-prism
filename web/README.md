@@ -13,12 +13,13 @@ escritorio y la web.
 
 ## La idea en una frase
 
-Pon un nombre de usuario, elige una versión y pulsa **Jugar**: el navegador
-descarga el cliente oficial desde Mojang (o lo lee de tu carpeta local), lo
-verifica con SHA-1, lo guarda en OPFS y lo ejecuta en una JVM WebAssembly.
-Si tienes una instalación real, puedes seleccionar tu carpeta de Prism o tu
-`.minecraft` y reutilizar versiones, librerías, assets, mundos, mods y
-configuración.
+Pulsa **Añadir instancia**, elige Minecraft en una lista y —si quieres—
+Forge, NeoForge, Fabric, Quilt o LiteLoader en otra lista. Después pulsa
+**Crear e iniciar**: el navegador descarga el cliente oficial desde Mojang
+(o lo lee de tu carpeta local), lo verifica con SHA-1, lo guarda en OPFS y lo
+ejecuta en una JVM WebAssembly cuando el runtime lo permite. Desde
+**Editar** puedes instalar mods, paquetes de recursos, shaders y paquetes de
+datos con la misma lógica de listas que usa Prism.
 
 ## Arranque rápido
 
@@ -40,7 +41,7 @@ npm run build
 npm run serve           # sirve dist/ en :4173 con Range + proxy CORS de respaldo
 ```
 
-Tests del núcleo (formatos Prism, reglas de Mojang, UUID offline):
+Tests del núcleo (formatos Prism, reglas de Mojang, Prism Meta, Modrinth y UUID offline):
 
 ```bash
 npm test
@@ -52,8 +53,10 @@ npm test
 ┌─────────────────────────────────────────────────────────────────────┐
 │ Navegador                                                           │
 │                                                                     │
-│  UI (instancias Prism en OPFS)                                      │
+│  UI tipo Prism/MainWindow (listas + dialogo de instancia)          │
 │        │                                                            │
+│        ├─ Prism Meta ──► loaders/dependencias ──► mmc-pack + patches │
+│        ├─ Modrinth ──► mods/resourcepacks/shaders/datapacks          │
 │        ├─ Manifiesto + perfiles de Mojang ──► resolvedor compatible │
 │        │    (inheritsFrom, reglas, librerías, assets, argumentos,  │
 │        │     parches patches/*.json de Prism)                       │
@@ -73,10 +76,28 @@ npm test
 
 Piezas clave:
 
-- **Instancias Prism de verdad.** Cada instancia web es una carpeta con
-  `instance.cfg`, `mmc-pack.json` (formatVersion 1), `patches/` y
-  `minecraft/` (o `.minecraft/`), igual que en el launcher de escritorio. El
-  único archivo extra es `webprism.json`, que Prism ignora.
+- **Instancias Prism de verdad.** La ventana principal imita el MainWindow
+  de Prism: barra de menús/herramientas, lista central de instancias, barra
+  lateral de acciones con **Iniciar** y barra de progreso. Cada instancia web
+  es una carpeta con `instance.cfg`, `mmc-pack.json` (formatVersion 1),
+  `patches/` y `minecraft/` (o `.minecraft/`), igual que en el launcher de
+  escritorio. Los archivos extra son `webprism.json` y los sidecars de
+  procedencia en `minecraft/.webprism-resources/`, que Prism ignora.
+- **Loaders desde Prism Meta.** El diálogo “Nueva instancia” y la página
+  **Versión** leen `https://meta.prismlauncher.org/v1/` (configurable):
+  filtran NeoForge, Forge, Fabric, Quilt y LiteLoader por la versión de
+  Minecraft, marcan la recomendada, verifican el SHA-256 del patch cuando el
+  índice lo trae, resuelven dependencias de componentes (por ejemplo
+  Fabric → Intermediary) y escriben `mmc-pack.json` + `patches/<uid>.json`.
+  Las instancias importadas sin patch local intentan descargarlo de forma
+  perezosa al comprobar/iniciar.
+- **Contenido como en Prism.** **Editar** abre páginas de **Versión, Mods,
+  Resource Packs, Shader Packs, Data Packs, Mundos, Juego, Registro y
+  Ajustes**. Cada página de contenido lista lo instalado y permite
+  **Descargar…** desde Modrinth (filtrado por versión y loader, con
+  dependencias requeridas y verificación SHA-512/SHA-1), **Añadir archivo…**,
+  activar/desactivar con `.disabled` y eliminar. Los Data Packs pueden ir a
+  la carpeta global de Prism o a `saves/<mundo>/datapacks/`.
 - **Resolvedor tipo launcher.** Lee el manifiesto oficial de Mojang, sigue
   `inheritsFrom` (perfiles Forge/Fabric de una `.minecraft`), evalúa reglas
   de SO/funciones, fusiona librerías Maven, descarga el cliente y los assets
@@ -119,24 +140,33 @@ Piezas clave:
 | Multijugador | ❌ Sin cuentas Microsoft y sin relay WebSocket→TCP; solo local/offline |
 | Login Microsoft | ❌ Solo perfil offline por nombre (UUID v3 como Prism) |
 
-El launcher lo dice antes de descargar cientos de MB: al **Resolver perfil**
-muestra Java requerido, librerías, nativos detectados y el motivo exacto de
-cualquier bloqueo.
+Poder instalar un loader moderno no significa que el navegador ya pueda
+ejecutarlo: la lista de instancias distingue **Recomendado**,
+**Experimental** y **Gestionar/exportar**. Al **Comprobar compatibilidad** (o
+al pulsar Iniciar) se muestran Java requerido, librerías, nativos detectados
+y el motivo exacto de cualquier bloqueo.
 
 ## Uso paso a paso
 
-1. Escribe un nombre de usuario (3–16 caracteres) y acepta el EULA.
-2. Elige una versión de la lista o escribe un ID de perfil personalizado
-   (p. ej. uno de Forge/Fabric presente en tu `.minecraft`).
-3. Pulsa **Jugar**. Si no existe instancia, se crea una automáticamente.
-   Para inspeccionar antes, usa **Resolver perfil** y **Descargar y preparar**.
-4. Para usar tu instalación real: **Importar instancia(s) Prism…** o
-   **Crear desde .minecraft…**, y opcionalmente **Vincular caché…** con la
-   carpeta que contiene `versions/`, `libraries/` y `assets/` (sirve tanto
-   `.minecraft` como la carpeta de datos de Prism).
-5. Al salir del juego, la partida se sincroniza a OPFS. Con
-   **Exportar / sincronizar a disco…** vuelve a tu carpeta; Prism de
-   escritorio reconocerá la instancia exportada.
+1. Pulsa **Añadir instancia**. Elige la versión de Minecraft en la lista
+   (los checkboxes separan releases, snapshots, betas, alfas, experimentos y
+   perfiles locales).
+2. En la segunda lista elige el loader —Ninguno, NeoForge, Forge, Fabric,
+   Quilt o LiteLoader— y después su versión. La recomendada por Prism Meta
+   viene preseleccionada. El campo de “ID de perfil” queda solo como opción
+   avanzada para perfiles ya importados.
+3. Pulsa **Crear e iniciar**. La primera vez WebPrism abre la cuenta offline:
+   escribe un nombre (3–16 caracteres), acepta el EULA y pulsa otra vez el
+   gran botón **Iniciar**. Doble clic en una instancia también la inicia.
+4. Para mods y packs: selecciona la instancia → **Editar** → **Mods** (o
+   Resource Packs / Shader Packs / Data Packs) → **Descargar…**. El catálogo
+   ya viene filtrado por la versión y el loader de la instancia.
+5. Para usar tu instalación real usa **Carpetas**: importar una instancia
+   Prism, importar `.minecraft` (si hay varios perfiles, se eligen en una
+   lista) o vincular la caché con `versions/`, `libraries/` y `assets/`.
+6. Al salir del juego, la partida se sincroniza a OPFS. **Exportar a
+   Prism…** la escribe de vuelta en tu carpeta; Prism de escritorio la
+   reconocerá.
 
 Consejos de rendimiento: una JVM wasm es monohilo y comparte CPU entre
 renderizado y servidor integrado. WebPrism crea un `options.txt` conservador
@@ -152,10 +182,12 @@ tardar minutos en la primera vez.
 - **No envíes `Cross-Origin-Embedder-Policy`** (COEP): el frame auxiliar de
   CheerpJ queda bloqueado y el arranque se cuelga en silencio. Sí enviamos
   `Cross-Origin-Opener-Policy: same-origin`.
-- Las descargas intentan primero ir directas a Mojang. Si un CDN no manda
-  CORS, el launcher reintenta por `/api/proxy?url=…`, un proxy con
-  allow-list incluido en el plugin de Vite y en `server.mjs`. En un hosting
-  100% estático puedes cambiar el campo “Proxy CORS” por tu propio worker.
+- Las descargas intentan primero ir directas a Mojang, Prism Meta o
+  Modrinth. Si un CDN no manda CORS, el launcher reintenta por
+  `/api/proxy?url=…`, un proxy con allow-list incluido en el plugin de Vite y
+  en `server.mjs` (incluye los dominios de Mojang, Prism, loaders y Modrinth).
+  En un hosting 100% estático puedes cambiar el campo “Proxy CORS” por tu
+  propio worker.
 - CheerpJ se carga desde el CDN de Leaning Technologies. Revisa sus
   términos (licencia comunitaria/comercial) antes de un despliegue público.
 
@@ -163,7 +195,9 @@ tardar minutos en la primera vez.
 
 ```text
 web/
-├─ index.html / src/main.ts / src/style.css   UI del launcher
+├─ index.html / src/main.ts / src/style.css   UI tipo Prism (listas, dialogos, Edit)
+├─ src/prismMeta.ts                           Loaders y dependencias desde Prism Meta
+├─ src/resources.ts · src/modrinth.ts         Contenido instalado + descarga rápida
 ├─ src/mojang.ts                              Perfiles, reglas, merges, compatibilidad
 ├─ src/launcherService.ts                     Descargas + plan de lanzamiento
 ├─ src/prism.ts                               instance.cfg y mmc-pack.json
@@ -178,13 +212,12 @@ web/
 
 ## Roadmap natural
 
-1. Resolvedor de componentes contra el servidor *meta* de Prism (instalar
-   Fabric/Forge/Quilt/NeoForge desde la propia web, no solo desde parches ya
-   presentes).
-2. Capa GLFW + OpenAL en WebAssembly para desbloquear 1.13–1.16.5 (Java 8) y
-   después 1.17+ con CheerpJ 17.
-3. Parches de runtime por versión (como hacen los ports comunitarios para
+1. Capa GLFW + OpenAL en WebAssembly para desbloquear 1.13–1.16.5 (Java 8) y
+   después 1.17+ con CheerpJ 17; procesadores completos de Forge/NeoForge.
+2. Parches de runtime por versión (como hacen los ports comunitarios para
    1.12.2) servidos como “componentes web” opcionales.
+3. Importación de modpacks (`.mrpack` y ZIP de Prism) y más proveedores de
+   contenido cuando tengan una API usable desde el navegador sin claves.
 4. Relay WebSocket→TCP y lista de servidores; autenticación Microsoft
    opcional tras un backend mínimo.
 5. Bundles AOT empaquetados como componentes instalables con procedencia y

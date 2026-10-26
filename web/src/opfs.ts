@@ -175,6 +175,21 @@ export const opfs = {
     await parent.removeEntry(segments[segments.length - 1], { recursive: true });
   },
 
+  async removeIfExists(path: string): Promise<void> {
+    try {
+      await this.remove(path);
+    } catch {
+      // Missing paths are fine when cleaning up optional metadata/patches.
+    }
+  },
+
+  async moveFile(from: string, to: string): Promise<void> {
+    if (from === to) return;
+    const file = await this.readFile(from);
+    await this.writeFile(to, file);
+    await this.remove(from);
+  },
+
   async estimate(): Promise<{ usage?: number; quota?: number }> {
     if (!navigator.storage?.estimate) return {};
     return navigator.storage.estimate();

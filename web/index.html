@@ -3,248 +3,548 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="WebPrism: launcher experimental de Minecraft Java en el navegador con instancias compatibles con Prism, OPFS y backend híbrido CheerpJ/AOT." />
-    <title>WebPrism — Minecraft Java en el navegador</title>
+    <meta name="theme-color" content="#232629" />
+    <link rel="icon" href="/prismlauncher.svg" type="image/svg+xml" />
+    <title>WebPrism — Prism Launcher en el navegador</title>
   </head>
   <body>
-    <header class="topbar">
-      <div class="brand">
-        <div class="brand-mark" aria-hidden="true">◆</div>
-        <div>
-          <h1>WebPrism</h1>
-          <p>Launcher web experimental con formatos de instancia Prism</p>
+    <div id="app">
+      <nav class="menu-bar" aria-label="Menú principal">
+        <span class="window-brand"><img src="/prismlauncher.svg" alt="" /> WebPrism</span>
+        <details class="menu" id="menu-file">
+          <summary>Archivo</summary>
+          <div class="menu-popover">
+            <button type="button" data-action="new-instance">Añadir instancia…</button>
+            <button type="button" data-action="import-instance">Importar instancia de Prism…</button>
+            <button type="button" data-action="import-minecraft">Importar .minecraft…</button>
+            <hr />
+            <button type="button" data-action="export-instance">Exportar instancia seleccionada…</button>
+            <button type="button" data-action="refresh">Actualizar listas</button>
+          </div>
+        </details>
+        <details class="menu" id="menu-edit">
+          <summary>Editar</summary>
+          <div class="menu-popover">
+            <button type="button" data-action="edit-instance">Editar instancia…</button>
+            <button type="button" data-action="install-loader">Instalar mod loader…</button>
+            <button type="button" data-action="rename-instance">Cambiar nombre…</button>
+            <hr />
+            <button type="button" class="danger-text" data-action="delete-instance">Borrar</button>
+          </div>
+        </details>
+        <details class="menu" id="menu-view">
+          <summary>Ver</summary>
+          <div class="menu-popover">
+            <button type="button" data-action="show-home">Instancias</button>
+            <button type="button" data-action="show-game">Juego</button>
+            <button type="button" data-action="show-log">Registro</button>
+            <hr />
+            <button type="button" data-action="global-settings">Ajustes…</button>
+          </div>
+        </details>
+        <details class="menu" id="menu-folders">
+          <summary>Carpetas</summary>
+          <div class="menu-popover wide-menu">
+            <button type="button" data-action="link-cache">Usar carpeta .minecraft/Prism como caché…</button>
+            <button type="button" data-action="import-instance">Importar instancia de Prism…</button>
+            <button type="button" data-action="import-minecraft">Importar .minecraft…</button>
+            <button type="button" data-action="export-instance">Exportar instancia seleccionada…</button>
+            <p class="local-detection menu-note">No has elegido ninguna carpeta local.</p>
+          </div>
+        </details>
+        <button type="button" class="menu-link" data-action="help">Ayuda</button>
+        <span class="menu-spacer"></span>
+        <span class="experimental-label">Experimental · se ejecuta 100% en tu navegador</span>
+      </nav>
+
+      <div class="main-toolbar" role="toolbar" aria-label="Herramientas principales">
+        <button type="button" id="add-instance" class="tool-button primary-tool">
+          <span class="tool-icon">+</span><span>Añadir instancia</span>
+        </button>
+        <button type="button" id="folders-toolbar" class="tool-button">
+          <span class="tool-icon">▤</span><span>Carpetas</span><span aria-hidden="true">▾</span>
+        </button>
+        <button type="button" id="global-settings-toolbar" class="tool-button">
+          <span class="tool-icon">⚙</span><span>Ajustes</span>
+        </button>
+        <button type="button" id="help-toolbar" class="tool-button">
+          <span class="tool-icon">?</span><span>Ayuda</span>
+        </button>
+        <span class="toolbar-spacer"></span>
+        <button type="button" id="account-button" class="account-button" title="Cuenta offline">
+          <span id="account-avatar" class="account-avatar">S</span>
+          <span class="account-text"><strong id="account-name">Steve</strong><small id="account-subtitle">Cuenta offline</small></span>
+          <span aria-hidden="true">▾</span>
+        </button>
+      </div>
+
+      <main id="home-view" class="home-layout">
+        <section class="instance-browser" aria-label="Instancias">
+          <div class="list-toolbar">
+            <label class="search-box">
+              <span aria-hidden="true">⌕</span>
+              <input id="instance-search" type="search" placeholder="Buscar instancias…" />
+            </label>
+            <label>
+              Ordenar por
+              <select id="instance-sort">
+                <option value="name">Nombre</option>
+                <option value="last">Última vez</option>
+                <option value="version">Versión</option>
+              </select>
+            </label>
+            <span id="instance-count" class="muted"></span>
+          </div>
+          <div class="group-header">▾ Sin grupo</div>
+          <div class="qt-table-head instance-columns" aria-hidden="true">
+            <span></span><span>Nombre</span><span>Minecraft</span><span>Mod loader</span><span>Mods</span><span>Mundos</span><span>Última vez</span><span>En web</span>
+          </div>
+          <div id="instance-list" class="instance-list" role="listbox" aria-label="Lista de instancias"></div>
+        </section>
+
+        <aside class="instance-toolbar" aria-label="Acciones de la instancia">
+          <span class="instance-icon-button" title="Icono de la instancia"><img src="/prismlauncher.svg" alt="" /></span>
+          <h1 id="selected-name">Sin instancia</h1>
+          <p id="selected-meta" class="selected-meta">Crea tu primera instancia para empezar.</p>
+
+          <button type="button" id="play" class="launch-button"><span class="launch-icon">▶</span> Iniciar</button>
+          <div id="launch-readiness" class="readiness-box">Elige una instancia y pulsa Iniciar.</div>
+
+          <div class="sidebar-group">
+            <button type="button" id="edit-instance" class="side-action"><span>✎</span> Editar</button>
+            <button type="button" id="install-loader-quick" class="side-action"><span>◆</span> Instalar loader…</button>
+          </div>
+
+          <div class="sidebar-heading">Contenido</div>
+          <div class="sidebar-group compact-group">
+            <button type="button" class="side-action" data-edit-page="mods"><span>◆</span> Mods <b id="quick-mod-count">0</b></button>
+            <button type="button" class="side-action" data-edit-page="resourcepacks"><span>▦</span> Resource Packs <b id="quick-resourcepack-count">0</b></button>
+            <button type="button" class="side-action" data-edit-page="shaderpacks"><span>✦</span> Shader Packs <b id="quick-shaderpack-count">0</b></button>
+            <button type="button" class="side-action" data-edit-page="datapacks"><span>▤</span> Data Packs <b id="quick-datapack-count">0</b></button>
+          </div>
+
+          <div class="sidebar-heading">Instancia</div>
+          <div class="sidebar-group compact-group">
+            <button type="button" id="export-instance-quick" class="side-action"><span>↗</span> Exportar a Prism…</button>
+            <button type="button" id="rename-instance" class="side-action"><span>✎</span> Cambiar nombre</button>
+            <button type="button" id="delete-instance" class="side-action danger"><span>×</span> Borrar</button>
+          </div>
+          <div class="sidebar-spacer"></div>
+          <p id="storage-estimate" class="storage-line">Almacenamiento del navegador: —</p>
+        </aside>
+      </main>
+
+      <main id="edit-view" class="edit-layout" hidden>
+        <aside class="page-list" aria-label="Páginas de la instancia">
+          <button type="button" id="back-home" class="back-button">← Instancias</button>
+          <div class="page-list-title">Editar instancia</div>
+          <button type="button" class="page-link" data-page="version">◆ <span>Versión</span></button>
+          <button type="button" class="page-link" data-page="mods">◆ <span>Mods</span><b data-count="mods">0</b></button>
+          <button type="button" class="page-link" data-page="resourcepacks">▦ <span>Resource Packs</span><b data-count="resourcepacks">0</b></button>
+          <button type="button" class="page-link" data-page="shaderpacks">✦ <span>Shader Packs</span><b data-count="shaderpacks">0</b></button>
+          <button type="button" class="page-link" data-page="datapacks">▤ <span>Data Packs</span><b data-count="datapacks">0</b></button>
+          <button type="button" class="page-link" data-page="worlds">◎ <span>Mundos</span><b data-count="saves">0</b></button>
+          <button type="button" class="page-link" data-page="game">▶ <span>Juego</span></button>
+          <button type="button" class="page-link" data-page="log">☰ <span>Registro</span></button>
+          <button type="button" class="page-link" data-page="settings">⚙ <span>Ajustes</span></button>
+        </aside>
+
+        <section class="edit-content">
+          <header class="edit-header">
+            <div>
+              <h2 id="edit-title">Instancia</h2>
+              <p id="edit-meta" class="muted"></p>
+            </div>
+            <button type="button" id="edit-play" class="launch-button small-launch">▶ Iniciar</button>
+            <button type="button" id="close-edit" class="qt-button">Cerrar</button>
+          </header>
+
+          <section id="page-version" class="edit-page">
+            <div class="group-box">
+              <h3>Versión de la instancia</h3>
+              <p id="version-summary" class="summary-line"></p>
+              <div class="qt-table-head component-columns"><span>Componente</span><span>Versión</span><span>Estado</span><span></span></div>
+              <div id="components-list" class="components-list"></div>
+              <div class="button-row">
+                <button type="button" id="change-version" class="qt-button">Cambiar versión de Minecraft…</button>
+                <button type="button" id="install-loader" class="qt-button">Instalar / cambiar loader…</button>
+                <button type="button" id="remove-loader" class="qt-button">Quitar loader</button>
+              </div>
+            </div>
+
+            <div class="group-box">
+              <h3>Comprobación web</h3>
+              <p class="muted">“Comprobar” lee los JSON de Mojang/Prism sin descargar el juego. Al pulsar Iniciar se descarga y verifica todo automáticamente.</p>
+              <div id="plan-box" class="plan-box">
+                <p class="muted">Todavía no se ha comprobado esta instancia.</p>
+              </div>
+              <div class="button-row">
+                <button type="button" id="resolve" class="qt-button">Comprobar compatibilidad</button>
+                <button type="button" id="prepare" class="qt-button">Descargar archivos sin iniciar</button>
+              </div>
+            </div>
+          </section>
+
+          <section id="page-resources" class="edit-page" hidden>
+            <div class="resource-layout">
+              <div class="resource-main">
+                <div class="resource-title-row">
+                  <div>
+                    <h3 id="resource-title">Mods</h3>
+                    <p id="resource-path" class="muted"></p>
+                  </div>
+                  <label id="resource-target-wrap">
+                    Instalar en
+                    <select id="resource-target"></select>
+                  </label>
+                </div>
+                <div id="resource-context" class="info-frame"></div>
+                <label class="search-box resource-search">
+                  <span aria-hidden="true">⌕</span>
+                  <input id="resource-search" type="search" placeholder="Buscar instalados…" />
+                </label>
+                <div class="qt-table-head resource-columns"><span>Estado</span><span>Archivo</span><span>Tamaño</span><span>Fecha</span><span>Origen</span></div>
+                <div id="resources-list" class="resources-list" role="listbox"></div>
+                <div id="resource-details" class="info-frame">Selecciona un archivo de la lista.</div>
+              </div>
+              <div class="resource-actions">
+                <button type="button" id="download-resource" class="qt-button primary">Descargar…</button>
+                <button type="button" id="add-resource" class="qt-button">Añadir archivo…</button>
+                <button type="button" id="toggle-resource" class="qt-button">Desactivar</button>
+                <button type="button" id="delete-resource" class="qt-button danger">Eliminar</button>
+                <button type="button" id="refresh-resources" class="qt-button">Actualizar</button>
+              </div>
+            </div>
+          </section>
+
+          <section id="page-worlds" class="edit-page" hidden>
+            <div class="group-box">
+              <h3>Mundos</h3>
+              <p class="muted">Los mundos viven en <code>saves/</code>. Cada mundo puede recibir sus propios paquetes de datos desde la página Data Packs.</p>
+              <div id="worlds-list" class="simple-list"></div>
+              <div class="button-row">
+                <button type="button" class="qt-button" data-edit-page="datapacks">Instalar Data Packs…</button>
+                <button type="button" id="refresh-worlds" class="qt-button">Actualizar</button>
+              </div>
+            </div>
+          </section>
+
+          <section id="page-game" class="edit-page" hidden>
+            <div class="group-box game-group">
+              <div class="game-title-row">
+                <h3>Juego</h3>
+                <span id="game-status" class="status-pill">Detenido</span>
+              </div>
+              <div id="game-stage" class="game-stage">
+                <div id="game-display" class="game-display">
+                  <p>La pantalla de CheerpJ aparecerá aquí al pulsar Iniciar.</p>
+                  <p class="muted">Primer objetivo real: 1.2.5. Las versiones LWJGL2 hasta 1.12.2 son experimentales.</p>
+                </div>
+                <iframe id="aot-frame" class="aot-frame" title="Cliente AOT de Minecraft" hidden allow="fullscreen; pointer-lock; gamepad; clipboard-read; clipboard-write"></iframe>
+              </div>
+              <div class="button-row">
+                <button type="button" id="fullscreen-game" class="qt-button">Pantalla completa</button>
+                <button type="button" id="stop-game" class="qt-button danger">Detener / recargar</button>
+              </div>
+            </div>
+          </section>
+
+          <section id="page-log" class="edit-page" hidden>
+            <div class="group-box log-group">
+              <div class="game-title-row">
+                <h3>Registro</h3>
+                <button type="button" id="clear-log" class="qt-button">Limpiar</button>
+              </div>
+              <textarea id="log" class="log" readonly spellcheck="false">WebPrism listo.
+</textarea>
+            </div>
+          </section>
+
+          <section id="page-settings" class="edit-page" hidden>
+            <div class="group-box">
+              <h3>Ajustes de esta instancia</h3>
+              <div class="form-grid">
+                <label>
+                  Motor web
+                  <select id="backend-select">
+                    <option value="auto">Automático</option>
+                    <option value="cheerpj">CheerpJ — JVM real + LWJGL2/WebGL</option>
+                    <option value="aot">AOT hospedado por ti (TeaVM/Eaglercraft)</option>
+                    <option value="manage">Solo gestionar / exportar</option>
+                  </select>
+                </label>
+                <label>Ancho <input id="window-width" type="number" min="320" max="3840" value="854" /></label>
+                <label>Alto <input id="window-height" type="number" min="240" max="2160" value="480" /></label>
+                <label class="wide-field">
+                  URL AOT para esta versión
+                  <input id="aot-url" type="url" placeholder="https://tu-servidor.example/minecraft-1.12.2/" />
+                </label>
+              </div>
+              <p class="muted">WebPrism no redistribuye clientes AOT. Esta URL carga un build que tú aportes en un iframe.</p>
+              <div class="button-row">
+                <button type="button" id="save-instance-settings" class="qt-button primary">Guardar ajustes de instancia</button>
+                <button type="button" id="open-account-from-settings" class="qt-button">Cuenta offline…</button>
+                <button type="button" id="open-global-from-settings" class="qt-button">Ajustes globales…</button>
+              </div>
+            </div>
+          </section>
+        </section>
+      </main>
+
+      <footer class="status-bar">
+        <span id="progress-label" class="progress-label">Listo.</span>
+        <span id="progress-detail" class="progress-detail"></span>
+        <progress id="progress-bar" value="0" max="1"></progress>
+      </footer>
+    </div>
+
+    <dialog id="new-instance-dialog" class="qt-dialog extra-wide-dialog">
+      <div class="dialog-titlebar"><span>Nueva instancia</span><button type="button" class="dialog-close" data-close-dialog="new-instance-dialog">✕</button></div>
+      <div class="new-instance-top">
+        <span class="dialog-instance-icon"><img src="/prismlauncher.svg" alt="" /></span>
+        <label class="grow">Nombre <input id="new-instance-name" value="Nueva instancia" /></label>
+        <label>Grupo <select disabled><option>Sin grupo</option></select></label>
+      </div>
+      <div class="new-instance-layout">
+        <label class="list-label source-list-label">
+          Tipo
+          <select id="new-source-list" size="4">
+            <option value="custom" selected>▶ Personalizada</option>
+            <option value="prism">◆ Importar de Prism</option>
+            <option value="minecraft">▤ Importar .minecraft</option>
+          </select>
+        </label>
+
+        <div id="new-custom-panel" class="new-custom-panel">
+          <fieldset class="dialog-group">
+            <legend>1 · Elige la versión de Minecraft</legend>
+            <label class="list-label">
+              Atajos recomendados
+              <select id="new-quick-list" size="3">
+                <option value="1.2.5">1.2.5 — la más fiable en web (Java 8 + LWJGL2)</option>
+                <option value="1.12.2">1.12.2 — mods Forge antiguos (experimental)</option>
+                <option value="latest">Última versión — gestionar/exportar; el inicio web aún está bloqueado</option>
+              </select>
+            </label>
+            <div class="filter-row">
+              <label><input id="new-filter-release" type="checkbox" checked /> Versiones</label>
+              <label><input id="new-filter-snapshot" type="checkbox" /> Snapshots</label>
+              <label><input id="new-filter-beta" type="checkbox" /> Betas</label>
+              <label><input id="new-filter-alpha" type="checkbox" /> Alfas</label>
+              <label><input id="new-filter-experiment" type="checkbox" /> Experimentos</label>
+              <label><input id="new-filter-local" type="checkbox" checked /> Locales</label>
+            </div>
+            <label class="search-box">
+              <span aria-hidden="true">⌕</span>
+              <input id="new-version-search" type="search" placeholder="Buscar versión… por ejemplo 1.12.2" />
+            </label>
+            <select id="new-version-list" size="12" class="version-listbox" aria-label="Versiones de Minecraft"></select>
+            <details class="advanced-details">
+              <summary>Perfil local/personalizado (avanzado)</summary>
+              <label>
+                ID exacto del perfil
+                <input id="new-custom-profile" placeholder="p. ej. 1.12.2-forge-14.23.5.2860" />
+              </label>
+              <p class="muted">Solo para perfiles ya importados o copiados en <code>versions/&lt;id&gt;/</code>. Para Forge/Fabric normales deja esto vacío y usa la lista de loaders.</p>
+            </details>
+          </fieldset>
+
+          <fieldset class="dialog-group">
+            <legend>2 · Elige el mod loader (opcional)</legend>
+            <div class="loader-grid">
+              <label class="list-label">
+                Mod loader
+                <select id="new-loader-list" size="7"></select>
+              </label>
+              <label class="list-label grow">
+                Versión del loader
+                <select id="new-loader-version-list" size="7"></select>
+              </label>
+              <button type="button" id="new-loader-refresh" class="qt-button">Actualizar</button>
+            </div>
+            <p id="new-loader-status" class="muted">“Ninguno” crea Minecraft vanilla. Los demás loaders se descargan desde el meta oficial de Prism.</p>
+          </fieldset>
+          <div id="new-summary" class="info-frame"></div>
+        </div>
+
+        <div id="new-import-panel" class="new-import-panel" hidden>
+          <h3 id="new-import-title">Importar</h3>
+          <p id="new-import-text" class="muted"></p>
+          <p class="local-detection info-frame">No has elegido ninguna carpeta local.</p>
+          <div class="button-row">
+            <button type="button" id="new-import-action" class="qt-button primary">Elegir carpeta e importar…</button>
+            <button type="button" id="new-link-cache-action" class="qt-button">Solo enlazar como caché…</button>
+          </div>
         </div>
       </div>
-      <div class="capabilities" aria-label="Capacidades del navegador">
-        <span id="chip-opfs" class="chip chip-muted">OPFS…</span>
-        <span id="chip-sw" class="chip chip-muted">Service Worker…</span>
-        <span id="chip-fs" class="chip chip-muted">Carpetas locales…</span>
-        <span id="chip-webgl" class="chip chip-muted">WebGL2…</span>
-        <span id="chip-lwjgl" class="chip chip-muted">LWJGL2 wasm…</span>
+      <div class="dialog-footer">
+        <span class="dialog-footer-spacer"></span>
+        <button type="button" class="qt-button" data-close-dialog="new-instance-dialog">Cancelar</button>
+        <button type="button" id="create-instance" class="qt-button">Crear</button>
+        <button type="button" id="create-and-play" class="qt-button primary">Crear e iniciar</button>
       </div>
-    </header>
+    </dialog>
 
-    <main class="layout">
-      <aside class="sidebar">
-        <section class="panel profile-panel">
-          <div class="panel-title">
-            <h2>Perfil offline</h2>
-            <span class="pill">Sin Microsoft</span>
-          </div>
-          <label class="field">
-            <span>Nombre de usuario</span>
-            <input id="username" type="text" minlength="3" maxlength="16" autocomplete="username" spellcheck="false" />
-          </label>
-          <p class="hint">UUID offline: <code id="uuid-preview">—</code></p>
-          <label class="checkbox eula">
-            <input id="eula" type="checkbox" />
-            <span>Acepto el <a href="https://www.minecraft.net/eula" target="_blank" rel="noreferrer">EULA de Minecraft</a> y entiendo que los archivos se descargan de Mojang o se leen de mi instalación.</span>
-          </label>
-        </section>
+    <dialog id="change-version-dialog" class="qt-dialog wide-dialog">
+      <div class="dialog-titlebar"><span>Cambiar versión de Minecraft</span><button type="button" class="dialog-close" data-close-dialog="change-version-dialog">✕</button></div>
+      <div class="dialog-body">
+        <div class="filter-row">
+          <label><input id="change-filter-release" type="checkbox" checked /> Versiones</label>
+          <label><input id="change-filter-snapshot" type="checkbox" /> Snapshots</label>
+          <label><input id="change-filter-beta" type="checkbox" /> Betas</label>
+          <label><input id="change-filter-alpha" type="checkbox" /> Alfas</label>
+          <label><input id="change-filter-experiment" type="checkbox" /> Experimentos</label>
+          <label><input id="change-filter-local" type="checkbox" checked /> Locales</label>
+        </div>
+        <label class="search-box"><span aria-hidden="true">⌕</span><input id="change-version-search" type="search" placeholder="Buscar versión…" /></label>
+        <select id="change-version-list" size="15" class="version-listbox"></select>
+        <p id="change-version-summary" class="info-frame"></p>
+      </div>
+      <div class="dialog-footer">
+        <span class="dialog-footer-spacer"></span>
+        <button type="button" class="qt-button" data-close-dialog="change-version-dialog">Cancelar</button>
+        <button type="button" id="apply-change-version" class="qt-button primary">Cambiar versión</button>
+      </div>
+    </dialog>
 
-        <section class="panel">
-          <div class="panel-title">
-            <h2>Instancias</h2>
-            <button id="refresh-instances" class="button button-ghost" type="button">↻</button>
-          </div>
-          <div id="instance-list" class="instance-list">
-            <p class="empty">Cargando instancias desde OPFS…</p>
-          </div>
-          <div class="button-row">
-            <button id="rename-instance" class="button button-secondary" type="button">Renombrar</button>
-            <button id="delete-instance" class="button button-danger" type="button">Eliminar</button>
-          </div>
-          <p id="storage-estimate" class="hint">Almacenamiento del origen: —</p>
-        </section>
+    <dialog id="loader-dialog" class="qt-dialog wide-dialog">
+      <div class="dialog-titlebar"><span>Instalar mod loader</span><button type="button" class="dialog-close" data-close-dialog="loader-dialog">✕</button></div>
+      <div class="dialog-body">
+        <p id="loader-dialog-context" class="info-frame"></p>
+        <div class="loader-grid">
+          <label class="list-label">Mod loader <select id="loader-list" size="8"></select></label>
+          <label class="list-label grow">Versión del loader <select id="loader-version-list" size="8"></select></label>
+          <button type="button" id="loader-refresh" class="qt-button">Actualizar</button>
+        </div>
+        <p id="loader-status" class="muted"></p>
+      </div>
+      <div class="dialog-footer">
+        <button type="button" id="loader-remove" class="qt-button danger">Quitar loader actual</button>
+        <span class="dialog-footer-spacer"></span>
+        <button type="button" class="qt-button" data-close-dialog="loader-dialog">Cancelar</button>
+        <button type="button" id="loader-apply" class="qt-button primary">OK</button>
+      </div>
+    </dialog>
 
-        <section class="panel">
-          <div class="panel-title">
-            <h2>Carpeta local</h2>
-            <span class="pill">Chromium</span>
-          </div>
-          <p class="hint">Importa instancias reales de Prism o una carpeta <code>.minecraft</code>. La caché compartida se lee bajo demanda; no hace falta copiar varios GiB para empezar.</p>
-          <div class="stack">
-            <button id="import-prism" class="button button-secondary" type="button">Importar instancia(s) Prism…</button>
-            <button id="import-minecraft" class="button button-secondary" type="button">Crear desde .minecraft…</button>
-            <button id="link-cache" class="button button-secondary" type="button">Vincular caché versions/libraries/assets…</button>
-            <button id="export-instance" class="button button-secondary" type="button">Exportar / sincronizar a disco…</button>
-          </div>
-          <div id="local-detection" class="notice">Todavía no se ha inspeccionado ninguna carpeta.</div>
-        </section>
+    <dialog id="import-version-dialog" class="qt-dialog">
+      <div class="dialog-titlebar"><span>Elige el perfil a importar</span></div>
+      <div class="dialog-body">
+        <p class="muted">Se han encontrado estos perfiles en la carpeta:</p>
+        <select id="import-version-list" size="10" class="version-listbox"></select>
+      </div>
+      <div class="dialog-footer">
+        <span class="dialog-footer-spacer"></span>
+        <button type="button" id="import-version-cancel" class="qt-button">Cancelar</button>
+        <button type="button" id="import-version-ok" class="qt-button primary">Importar perfil</button>
+      </div>
+    </dialog>
 
-        <section class="panel">
-          <div class="panel-title"><h2>Ajustes avanzados</h2></div>
-          <label class="field">
-            <span>Proxy CORS (solo si Mojang bloquea la descarga directa)</span>
-            <input id="proxy-base" type="text" spellcheck="false" />
+    <dialog id="download-dialog" class="qt-dialog extra-wide-dialog">
+      <div class="dialog-titlebar"><span id="download-title">Descargar desde Modrinth</span><button type="button" class="dialog-close" data-close-dialog="download-dialog">✕</button></div>
+      <div class="dialog-body download-body">
+        <p id="download-context" class="info-frame"></p>
+        <div class="download-search-row">
+          <label class="search-box grow"><span aria-hidden="true">⌕</span><input id="download-search" type="search" placeholder="Buscar en Modrinth…" /></label>
+          <label>
+            Ordenar
+            <select id="download-sort">
+              <option value="relevance">Relevancia</option>
+              <option value="downloads">Descargas</option>
+              <option value="follows">Seguidores</option>
+              <option value="updated">Actualizado</option>
+              <option value="newest">Nuevo</option>
+            </select>
           </label>
-          <label class="field">
-            <span>Loader de CheerpJ</span>
-            <input id="cheerpj-url" type="url" spellcheck="false" />
-          </label>
-          <label class="field">
-            <span>Descargas simultáneas (1–16)</span>
-            <input id="concurrency" type="number" min="1" max="16" step="1" />
-          </label>
-          <button id="save-settings" class="button button-secondary" type="button">Guardar ajustes</button>
-        </section>
-      </aside>
-
-      <section class="content">
-        <section class="hero panel">
+          <button type="button" id="download-search-button" class="qt-button">Buscar</button>
+        </div>
+        <div class="download-layout">
           <div>
-            <p class="eyebrow">JVM real en WebAssembly + ruta AOT opcional</p>
-            <h2>Elige una versión, pon tu nombre… y a jugar.</h2>
-            <p>
-              WebPrism resuelve perfiles como un launcher de escritorio: manifiesto de Mojang, herencia
-              <code>inheritsFrom</code>, reglas, librerías, assets con SHA-1, argumentos y parches de Prism.
-              Después elige entre una JVM CheerpJ (JAR reales) o un bundle AOT/TeaVM que tú alojes.
-            </p>
+            <div class="qt-table-head download-columns"><span></span><span>Proyecto</span><span>Autor</span><span>Descargas</span><span></span></div>
+            <div id="download-results" class="download-results"></div>
+            <p id="download-status" class="muted"></p>
           </div>
-          <div class="hero-stats">
-            <div><strong id="hero-instance">—</strong><span>instancia</span></div>
-            <div><strong id="hero-version">—</strong><span>versión</span></div>
-            <div><strong id="hero-mods">0</strong><span>mods</span></div>
-            <div><strong id="hero-saves">0</strong><span>mundos</span></div>
+          <div class="download-version-panel">
+            <label class="list-label">Versión compatible <select id="download-version-list" size="12"></select></label>
+            <div id="download-version-details" class="info-frame">Elige un proyecto para ver sus versiones.</div>
+            <button type="button" id="install-download-version" class="qt-button primary">Instalar versión elegida</button>
           </div>
-        </section>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button type="button" id="download-more" class="qt-button">Cargar más</button>
+        <span class="dialog-footer-spacer"></span>
+        <button type="button" class="qt-button" data-close-dialog="download-dialog">Cerrar</button>
+      </div>
+    </dialog>
 
-        <section class="panel controls-panel">
-          <div class="panel-title">
-            <h2>Crear / configurar instancia</h2>
-            <span id="selected-badge" class="pill">Sin selección</span>
+    <dialog id="account-dialog" class="qt-dialog">
+      <div class="dialog-titlebar"><span>Cuenta offline</span><button type="button" class="dialog-close" data-close-dialog="account-dialog">✕</button></div>
+      <div class="dialog-body">
+        <p class="muted">Solo necesitas un nombre. No hay inicio de sesión Microsoft: los servidores online-mode rechazarán esta identidad.</p>
+        <label>Nombre de usuario <input id="username" maxlength="16" autocomplete="username" /></label>
+        <p class="muted">UUID offline: <code id="offline-uuid">—</code></p>
+        <label class="check-row"><input id="eula-accepted" type="checkbox" /> Acepto el EULA de Minecraft y solo descargaré/usaré archivos para los que tenga derecho.</label>
+      </div>
+      <div class="dialog-footer">
+        <span class="dialog-footer-spacer"></span>
+        <button type="button" class="qt-button" data-close-dialog="account-dialog">Cancelar</button>
+        <button type="button" id="save-account" class="qt-button primary">Guardar cuenta</button>
+      </div>
+    </dialog>
+
+    <dialog id="settings-dialog" class="qt-dialog wide-dialog">
+      <div class="dialog-titlebar"><span>Ajustes de WebPrism</span><button type="button" class="dialog-close" data-close-dialog="settings-dialog">✕</button></div>
+      <div class="dialog-body">
+        <fieldset class="dialog-group">
+          <legend>Red y runtime</legend>
+          <label>Proxy CORS de reserva <input id="proxy-base" /></label>
+          <label>Meta de Prism <input id="prism-meta-url" /></label>
+          <label>Loader de CheerpJ <input id="cheerpj-loader" /></label>
+          <label>Descargas simultáneas <input id="concurrency" type="number" min="1" max="32" /></label>
+        </fieldset>
+        <fieldset class="dialog-group">
+          <legend>Capacidades del navegador</legend>
+          <div class="capability-list">
+            <span id="cap-opfs" class="capability">OPFS</span>
+            <span id="cap-sw" class="capability">Service Worker</span>
+            <span id="cap-fs" class="capability">Carpetas locales</span>
+            <span id="cap-wasm" class="capability">WebAssembly</span>
+            <span id="cap-webgl" class="capability">WebGL2</span>
           </div>
-
-          <div class="grid grid-versions">
-            <label class="field grow">
-              <span>Buscar versión</span>
-              <input id="version-search" type="search" placeholder="1.12.2, 1.8.9, fabric-loader…" spellcheck="false" />
-            </label>
-            <label class="field">
-              <span>Tipo</span>
-              <select id="version-filter">
-                <option value="all">Todas</option>
-                <option value="release" selected>Releases</option>
-                <option value="snapshot">Snapshots / pre-releases</option>
-                <option value="old">Alpha / Beta / clásicas</option>
-                <option value="local">Locales / personalizadas</option>
-              </select>
-            </label>
-            <button id="refresh-versions" class="button button-secondary align-end" type="button">Actualizar lista</button>
+          <p class="local-detection muted">No has elegido ninguna carpeta local.</p>
+          <div class="button-row">
+            <button type="button" class="qt-button" data-action="link-cache">Elegir carpeta local como caché…</button>
+            <button type="button" class="qt-button" data-action="refresh">Actualizar manifiesto y listas</button>
           </div>
+        </fieldset>
+      </div>
+      <div class="dialog-footer">
+        <span class="dialog-footer-spacer"></span>
+        <button type="button" class="qt-button" data-close-dialog="settings-dialog">Cancelar</button>
+        <button type="button" id="save-settings" class="qt-button primary">Guardar ajustes</button>
+      </div>
+    </dialog>
 
-          <div class="grid grid-main-controls">
-            <label class="field grow">
-              <span>Versión de Mojang o perfil local</span>
-              <select id="version-select" size="1"></select>
-            </label>
-            <label class="field grow">
-              <span>ID personalizado / loader (opcional)</span>
-              <input id="custom-version" type="text" placeholder="p. ej. 1.12.2-forge… o fabric-loader-…" spellcheck="false" />
-            </label>
-          </div>
+    <dialog id="help-dialog" class="qt-dialog wide-dialog">
+      <div class="dialog-titlebar"><span>Cómo jugar</span><button type="button" class="dialog-close" data-close-dialog="help-dialog">✕</button></div>
+      <div class="dialog-body help-body">
+        <ol>
+          <li><strong>Añadir instancia</strong>: elige Minecraft en la lista. Si quieres mods, elige Forge, NeoForge, Fabric, Quilt o LiteLoader y su versión en la segunda lista.</li>
+          <li><strong>Crear e iniciar</strong>. La primera vez WebPrism te pedirá un nombre offline y que aceptes el EULA.</li>
+          <li>Para contenido, selecciona la instancia → <strong>Editar</strong> → Mods / Resource Packs / Shader Packs / Data Packs → <strong>Descargar…</strong>.</li>
+        </ol>
+        <h3>Qué significa el estado web</h3>
+        <ul>
+          <li><strong>Recomendado:</strong> 1.2.5, el objetivo probado de CheerpJ + LWJGL2.</li>
+          <li><strong>Experimental:</strong> versiones antiguas/LWJGL2 hasta 1.12.2, incluidos loaders legacy. Pueden fallar.</li>
+          <li><strong>Gestionar/exportar:</strong> versiones modernas (Java 17/21 + LWJGL3) o loaders modernos. Puedes crear la instancia e instalar contenido, pero el navegador aún no puede ejecutarlas.</li>
+        </ul>
+        <p class="muted">Las instancias siguen el formato de Prism (<code>instance.cfg</code>, <code>mmc-pack.json</code>, <code>patches/</code>), así que puedes importarlas/exportarlas con una carpeta local.</p>
+      </div>
+      <div class="dialog-footer"><span class="dialog-footer-spacer"></span><button type="button" class="qt-button primary" data-close-dialog="help-dialog">Entendido</button></div>
+    </dialog>
 
-          <div class="grid grid-instance-controls">
-            <label class="field grow">
-              <span>Nombre para una instancia nueva</span>
-              <input id="instance-name" type="text" placeholder="Mi mundo web" />
-            </label>
-            <label class="field">
-              <span>Backend</span>
-              <select id="backend-select">
-                <option value="auto">Automático (híbrido)</option>
-                <option value="cheerpj">CheerpJ — JVM / JAR reales</option>
-                <option value="aot">AOT — bundle TeaVM/Eagler alojado por mí</option>
-              </select>
-            </label>
-            <label class="field small">
-              <span>Ancho</span>
-              <input id="window-width" type="number" min="320" max="3840" step="1" />
-            </label>
-            <label class="field small">
-              <span>Alto</span>
-              <input id="window-height" type="number" min="200" max="2160" step="1" />
-            </label>
-          </div>
-
-          <label class="field">
-            <span>URL del bundle AOT para esta instancia/versión (opcional)</span>
-            <input id="aot-url" type="url" placeholder="https://tu-servidor.example/eaglercraft-1.8.8/" spellcheck="false" />
-          </label>
-          <p class="hint">WebPrism no incluye clientes AOT de terceros. Si configuras una URL, en modo automático se preferirá para instancias vanilla compatibles; con mods/loaders se usará la JVM.</p>
-
-          <div class="button-row wrap">
-            <button id="create-instance" class="button button-primary" type="button">Crear instancia</button>
-            <button id="apply-version" class="button button-secondary" type="button">Aplicar versión a la seleccionada</button>
-            <button id="save-instance-settings" class="button button-secondary" type="button">Guardar backend/ventana</button>
-          </div>
-        </section>
-
-        <section class="panel launch-panel">
-          <div class="panel-title">
-            <h2>Motor y plan de lanzamiento</h2>
-            <span id="compatibility-badge" class="badge badge-muted">Sin resolver</span>
-          </div>
-
-          <div class="launch-actions">
-            <button id="resolve-profile" class="button button-secondary" type="button">1 · Resolver perfil</button>
-            <button id="prepare-plan" class="button button-secondary" type="button">2 · Descargar y preparar</button>
-            <button id="play" class="button button-play" type="button">▶ Jugar</button>
-            <button id="fullscreen-game" class="button button-ghost" type="button">Pantalla completa</button>
-            <button id="reload-page" class="button button-ghost" type="button">Recargar / detener JVM</button>
-          </div>
-
-          <div class="progress-wrap" aria-live="polite">
-            <div class="progress-meta">
-              <strong id="progress-label">Listo</strong>
-              <span id="progress-detail">Sin tareas en curso</span>
-            </div>
-            <progress id="progress-bar" max="100" value="0"></progress>
-          </div>
-
-          <div id="plan-details" class="plan-details">
-            <p class="empty">Resuelve un perfil para ver Java requerido, librerías, compatibilidad, argumentos y bloqueos reales.</p>
-          </div>
-        </section>
-
-        <section class="panel game-panel">
-          <div class="panel-title">
-            <h2>Pantalla de juego</h2>
-            <span class="pill">CheerpJ / AOT</span>
-          </div>
-          <div id="game-shell" class="game-shell">
-            <div id="game-placeholder" class="game-placeholder">
-              <div class="placeholder-cube" aria-hidden="true">⬢</div>
-              <h3>La JVM todavía no ha arrancado</h3>
-              <p>1.2.5 es la ruta JVM demostrada; el resto de la era LWJGL2 es experimental. LWJGL3 sigue bloqueado hasta tener GLFW/OpenAL en wasm.</p>
-            </div>
-            <div id="game-display" class="game-display" hidden></div>
-            <iframe id="aot-frame" class="aot-frame" title="Cliente AOT de Minecraft" hidden allow="fullscreen; pointer-lock; keyboard-map; gamepad"></iframe>
-          </div>
-        </section>
-
-        <section class="panel log-panel">
-          <div class="panel-title">
-            <h2>Registro del launcher</h2>
-            <div class="button-row compact">
-              <button id="download-log" class="button button-ghost" type="button">Descargar</button>
-              <button id="clear-log" class="button button-ghost" type="button">Limpiar</button>
-            </div>
-          </div>
-          <div id="log" class="log" aria-live="polite"></div>
-        </section>
-
-        <footer class="footer">
-          <p>
-            Experimento no oficial. No está afiliado a Mojang, Microsoft ni al proyecto Prism Launcher.
-            Minecraft requiere una licencia válida; WebPrism no redistribuye el cliente ni los assets.
-            CheerpJ es software de Leaning Technologies sujeto a sus términos.
-          </p>
-        </footer>
-      </section>
-    </main>
-
-    <noscript>WebPrism necesita JavaScript, WebAssembly, OPFS y Service Workers.</noscript>
+    <input id="resource-file-input" type="file" multiple hidden />
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -46,6 +46,8 @@ const ALLOWED_PROXY_SUFFIXES = [
   "repo.maven.apache.org",
   "maven-central.storage-download.googleapis.com",
   "libraries.minecraft.net",
+  "prismlauncher.org",
+  "modrinth.com",
 ];
 
 function allowedProxyTarget(raw) {

@@ -1,4 +1,4 @@
-import type { InstanceSettings, PrismPackProfile } from "./types";
+import type { InstanceSettings, PrismComponent, PrismPackProfile } from "./types";
 
 export function slugifyInstanceId(name: string): string {
   const slug = name
@@ -138,12 +138,90 @@ const LOADER_COMPONENTS = new Map<string, string>([
   ["com.mumfrey.liteloader", "LiteLoader"],
 ]);
 
+export const PRIMARY_LOADER_UIDS = [...LOADER_COMPONENTS.keys()];
+export const INTERMEDIARY_UID = "net.fabricmc.intermediary";
+
+const LOADER_SLUGS = new Map<string, string>([
+  ["net.fabricmc.fabric-loader", "fabric"],
+  ["org.quiltmc.quilt-loader", "quilt"],
+  ["net.minecraftforge", "forge"],
+  ["net.neoforged", "neoforge"],
+  ["com.mumfrey.liteloader", "liteloader"],
+]);
+
 export function describeComponent(uid: string): string {
   if (uid === "net.minecraft") return "Minecraft";
-  if (uid === "org.lwjgl" || uid === "org.lwjgl3") return "LWJGL";
+  if (uid === "org.lwjgl") return "LWJGL 2";
+  if (uid === "org.lwjgl3") return "LWJGL 3";
+  if (uid === INTERMEDIARY_UID) return "Intermediary";
   return LOADER_COMPONENTS.get(uid) ?? uid;
 }
 
 export function isLoaderComponent(uid: string): boolean {
   return LOADER_COMPONENTS.has(uid);
+}
+
+export function loaderSlugForComponent(uid: string): string | undefined {
+  return LOADER_SLUGS.get(uid);
+}
+
+export function modrinthLoaderSlugsForUid(uid: string): string[] {
+  const slug = loaderSlugForComponent(uid);
+  if (!slug) return [];
+  // Quilt intentionally loads most Fabric mods, which Modrinth models as two
+  // separate categories/loaders.
+  return slug === "quilt" ? ["quilt", "fabric"] : [slug];
+}
+
+export function primaryLoaderComponent(components: PrismComponent[]): PrismComponent | undefined {
+  return components.find((component) => !component.disabled && isLoaderComponent(component.uid));
+}
+
+export function inferMinecraftVersionFromProfileId(profileId: string): string | undefined {
+  const snapshot = /^(\d{2}w\d{2}[a-z])(?:[-_].+)?$/i.exec(profileId);
+  if (snapshot) return snapshot[1];
+  const matches = [...profileId.matchAll(/(?:^|[-_])(1\.\d+(?:\.\d+)?)(?=$|[-_])/g)];
+  if (!matches.length) return undefined;
+  // Profiles are usually either "1.12.2-forge-..." (version first) or
+  // "fabric-loader-0.16.10-1.20.1" (version last). Prefer a leading version,
+  // otherwise use the last plausible Minecraft-looking segment.
+  return profileId.startsWith(matches[0][1]) ? matches[0][1] : matches[matches.length - 1][1];
+}
+
+export function inferLoaderSlugFromProfileId(profileId: string): string | undefined {
+  const value = profileId.toLowerCase();
+  if (value.includes("neoforge") || value.includes("neoforged")) return "neoforge";
+  if (value.includes("fabric")) return "fabric";
+  if (value.includes("quilt")) return "quilt";
+  if (value.includes("forge")) return "forge";
+  if (value.includes("liteloader")) return "liteloader";
+  return undefined;
+}
+
+export function removePackComponents(profile: PrismPackProfile, uids: Iterable<string>): PrismPackProfile {
+  const remove = new Set(uids);
+  return {
+    formatVersion: 1,
+    components: profile.components.filter((component) => !remove.has(component.uid)),
+  };
+}
+
+export function upsertPackComponents(
+  profile: PrismPackProfile,
+  additions: PrismComponent[],
+  removeUids: Iterable<string> = [],
+): PrismPackProfile {
+  const remove = new Set(removeUids);
+  for (const addition of additions) remove.add(addition.uid);
+  const components = profile.components.filter((component) => !remove.has(component.uid));
+  for (const addition of additions) {
+    components.push({
+      ...addition,
+      version: addition.version ?? addition.cachedVersion,
+      cachedVersion: addition.cachedVersion ?? addition.version,
+      cachedName: addition.cachedName ?? describeComponent(addition.uid),
+      disabled: false,
+    });
+  }
+  return { formatVersion: 1, components };
 }
