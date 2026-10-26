@@ -62,3 +62,11 @@ flatbuild
 
 # Snap
 *.snap
+
+# WebPrism (experimental web launcher)
+web/node_modules/
+web/dist/
+web/.vite/
+web/public/lwjgl/
+web/data/
+web/*.local

@@ -1,0 +1,21 @@
+{
+  "name": "web-prism",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Experimental browser launcher using Prism Launcher instance formats, OPFS and pluggable Java/AOT runtimes.",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5173",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 5173",
+    "serve": "node server.mjs",
+    "test": "vitest run",
+    "setup:runtime": "node scripts/fetch-lwjgl2.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.2",
+    "vitest": "^3.0.8"
+  }
+}

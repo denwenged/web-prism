@@ -61,6 +61,15 @@ The translation effort for Prism Launcher is hosted on [Weblate](https://hosted.
 
 If you want to build Prism Launcher yourself, check the [build instructions](https://prismlauncher.org/wiki/development/build-instructions).
 
+## WebPrism (experimental)
+
+The `web/` directory contains **WebPrism**, an unofficial experimental
+browser launcher that reuses Prism's instance formats (`instance.cfg`,
+`mmc-pack.json`) to resolve, download and run Minecraft: Java Edition in the
+browser with a WebAssembly JVM and an optional AOT backend. It does not
+replace the desktop launcher. See [`web/README.md`](web/README.md) for the
+architecture, compatibility matrix and usage instructions.
+
 ## Sponsors & Partners
 
 We thank all the wonderful backers over at Open Collective! Support Prism Launcher by [becoming a backer](https://opencollective.com/prismlauncher).

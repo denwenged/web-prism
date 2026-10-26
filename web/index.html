@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="WebPrism: launcher experimental de Minecraft Java en el navegador con instancias compatibles con Prism, OPFS y backend híbrido CheerpJ/AOT." />
+    <title>WebPrism — Minecraft Java en el navegador</title>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">◆</div>
+        <div>
+          <h1>WebPrism</h1>
+          <p>Launcher web experimental con formatos de instancia Prism</p>
+        </div>
+      </div>
+      <div class="capabilities" aria-label="Capacidades del navegador">
+        <span id="chip-opfs" class="chip chip-muted">OPFS…</span>
+        <span id="chip-sw" class="chip chip-muted">Service Worker…</span>
+        <span id="chip-fs" class="chip chip-muted">Carpetas locales…</span>
+        <span id="chip-webgl" class="chip chip-muted">WebGL2…</span>
+        <span id="chip-lwjgl" class="chip chip-muted">LWJGL2 wasm…</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <section class="panel profile-panel">
+          <div class="panel-title">
+            <h2>Perfil offline</h2>
+            <span class="pill">Sin Microsoft</span>
+          </div>
+          <label class="field">
+            <span>Nombre de usuario</span>
+            <input id="username" type="text" minlength="3" maxlength="16" autocomplete="username" spellcheck="false" />
+          </label>
+          <p class="hint">UUID offline: <code id="uuid-preview">—</code></p>
+          <label class="checkbox eula">
+            <input id="eula" type="checkbox" />
+            <span>Acepto el <a href="https://www.minecraft.net/eula" target="_blank" rel="noreferrer">EULA de Minecraft</a> y entiendo que los archivos se descargan de Mojang o se leen de mi instalación.</span>
+          </label>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">
+            <h2>Instancias</h2>
+            <button id="refresh-instances" class="button button-ghost" type="button">↻</button>
+          </div>
+          <div id="instance-list" class="instance-list">
+            <p class="empty">Cargando instancias desde OPFS…</p>
+          </div>
+          <div class="button-row">
+            <button id="rename-instance" class="button button-secondary" type="button">Renombrar</button>
+            <button id="delete-instance" class="button button-danger" type="button">Eliminar</button>
+          </div>
+          <p id="storage-estimate" class="hint">Almacenamiento del origen: —</p>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">
+            <h2>Carpeta local</h2>
+            <span class="pill">Chromium</span>
+          </div>
+          <p class="hint">Importa instancias reales de Prism o una carpeta <code>.minecraft</code>. La caché compartida se lee bajo demanda; no hace falta copiar varios GiB para empezar.</p>
+          <div class="stack">
+            <button id="import-prism" class="button button-secondary" type="button">Importar instancia(s) Prism…</button>
+            <button id="import-minecraft" class="button button-secondary" type="button">Crear desde .minecraft…</button>
+            <button id="link-cache" class="button button-secondary" type="button">Vincular caché versions/libraries/assets…</button>
+            <button id="export-instance" class="button button-secondary" type="button">Exportar / sincronizar a disco…</button>
+          </div>
+          <div id="local-detection" class="notice">Todavía no se ha inspeccionado ninguna carpeta.</div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title"><h2>Ajustes avanzados</h2></div>
+          <label class="field">
+            <span>Proxy CORS (solo si Mojang bloquea la descarga directa)</span>
+            <input id="proxy-base" type="text" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span>Loader de CheerpJ</span>
+            <input id="cheerpj-url" type="url" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span>Descargas simultáneas (1–16)</span>
+            <input id="concurrency" type="number" min="1" max="16" step="1" />
+          </label>
+          <button id="save-settings" class="button button-secondary" type="button">Guardar ajustes</button>
+        </section>
+      </aside>
+
+      <section class="content">
+        <section class="hero panel">
+          <div>
+            <p class="eyebrow">JVM real en WebAssembly + ruta AOT opcional</p>
+            <h2>Elige una versión, pon tu nombre… y a jugar.</h2>
+            <p>
+              WebPrism resuelve perfiles como un launcher de escritorio: manifiesto de Mojang, herencia
+              <code>inheritsFrom</code>, reglas, librerías, assets con SHA-1, argumentos y parches de Prism.
+              Después elige entre una JVM CheerpJ (JAR reales) o un bundle AOT/TeaVM que tú alojes.
+            </p>
+          </div>
+          <div class="hero-stats">
+            <div><strong id="hero-instance">—</strong><span>instancia</span></div>
+            <div><strong id="hero-version">—</strong><span>versión</span></div>
+            <div><strong id="hero-mods">0</strong><span>mods</span></div>
+            <div><strong id="hero-saves">0</strong><span>mundos</span></div>
+          </div>
+        </section>
+
+        <section class="panel controls-panel">
+          <div class="panel-title">
+            <h2>Crear / configurar instancia</h2>
+            <span id="selected-badge" class="pill">Sin selección</span>
+          </div>
+
+          <div class="grid grid-versions">
+            <label class="field grow">
+              <span>Buscar versión</span>
+              <input id="version-search" type="search" placeholder="1.12.2, 1.8.9, fabric-loader…" spellcheck="false" />
+            </label>
+            <label class="field">
+              <span>Tipo</span>
+              <select id="version-filter">
+                <option value="all">Todas</option>
+                <option value="release" selected>Releases</option>
+                <option value="snapshot">Snapshots / pre-releases</option>
+                <option value="old">Alpha / Beta / clásicas</option>
+                <option value="local">Locales / personalizadas</option>
+              </select>
+            </label>
+            <button id="refresh-versions" class="button button-secondary align-end" type="button">Actualizar lista</button>
+          </div>
+
+          <div class="grid grid-main-controls">
+            <label class="field grow">
+              <span>Versión de Mojang o perfil local</span>
+              <select id="version-select" size="1"></select>
+            </label>
+            <label class="field grow">
+              <span>ID personalizado / loader (opcional)</span>
+              <input id="custom-version" type="text" placeholder="p. ej. 1.12.2-forge… o fabric-loader-…" spellcheck="false" />
+            </label>
+          </div>
+
+          <div class="grid grid-instance-controls">
+            <label class="field grow">
+              <span>Nombre para una instancia nueva</span>
+              <input id="instance-name" type="text" placeholder="Mi mundo web" />
+            </label>
+            <label class="field">
+              <span>Backend</span>
+              <select id="backend-select">
+                <option value="auto">Automático (híbrido)</option>
+                <option value="cheerpj">CheerpJ — JVM / JAR reales</option>
+                <option value="aot">AOT — bundle TeaVM/Eagler alojado por mí</option>
+              </select>
+            </label>
+            <label class="field small">
+              <span>Ancho</span>
+              <input id="window-width" type="number" min="320" max="3840" step="1" />
+            </label>
+            <label class="field small">
+              <span>Alto</span>
+              <input id="window-height" type="number" min="200" max="2160" step="1" />
+            </label>
+          </div>
+
+          <label class="field">
+            <span>URL del bundle AOT para esta instancia/versión (opcional)</span>
+            <input id="aot-url" type="url" placeholder="https://tu-servidor.example/eaglercraft-1.8.8/" spellcheck="false" />
+          </label>
+          <p class="hint">WebPrism no incluye clientes AOT de terceros. Si configuras una URL, en modo automático se preferirá para instancias vanilla compatibles; con mods/loaders se usará la JVM.</p>
+
+          <div class="button-row wrap">
+            <button id="create-instance" class="button button-primary" type="button">Crear instancia</button>
+            <button id="apply-version" class="button button-secondary" type="button">Aplicar versión a la seleccionada</button>
+            <button id="save-instance-settings" class="button button-secondary" type="button">Guardar backend/ventana</button>
+          </div>
+        </section>
+
+        <section class="panel launch-panel">
+          <div class="panel-title">
+            <h2>Motor y plan de lanzamiento</h2>
+            <span id="compatibility-badge" class="badge badge-muted">Sin resolver</span>
+          </div>
+
+          <div class="launch-actions">
+            <button id="resolve-profile" class="button button-secondary" type="button">1 · Resolver perfil</button>
+            <button id="prepare-plan" class="button button-secondary" type="button">2 · Descargar y preparar</button>
+            <button id="play" class="button button-play" type="button">▶ Jugar</button>
+            <button id="fullscreen-game" class="button button-ghost" type="button">Pantalla completa</button>
+            <button id="reload-page" class="button button-ghost" type="button">Recargar / detener JVM</button>
+          </div>
+
+          <div class="progress-wrap" aria-live="polite">
+            <div class="progress-meta">
+              <strong id="progress-label">Listo</strong>
+              <span id="progress-detail">Sin tareas en curso</span>
+            </div>
+            <progress id="progress-bar" max="100" value="0"></progress>
+          </div>
+
+          <div id="plan-details" class="plan-details">
+            <p class="empty">Resuelve un perfil para ver Java requerido, librerías, compatibilidad, argumentos y bloqueos reales.</p>
+          </div>
+        </section>
+
+        <section class="panel game-panel">
+          <div class="panel-title">
+            <h2>Pantalla de juego</h2>
+            <span class="pill">CheerpJ / AOT</span>
+          </div>
+          <div id="game-shell" class="game-shell">
+            <div id="game-placeholder" class="game-placeholder">
+              <div class="placeholder-cube" aria-hidden="true">⬢</div>
+              <h3>La JVM todavía no ha arrancado</h3>
+              <p>1.2.5 es la ruta JVM demostrada; el resto de la era LWJGL2 es experimental. LWJGL3 sigue bloqueado hasta tener GLFW/OpenAL en wasm.</p>
+            </div>
+            <div id="game-display" class="game-display" hidden></div>
+            <iframe id="aot-frame" class="aot-frame" title="Cliente AOT de Minecraft" hidden allow="fullscreen; pointer-lock; keyboard-map; gamepad"></iframe>
+          </div>
+        </section>
+
+        <section class="panel log-panel">
+          <div class="panel-title">
+            <h2>Registro del launcher</h2>
+            <div class="button-row compact">
+              <button id="download-log" class="button button-ghost" type="button">Descargar</button>
+              <button id="clear-log" class="button button-ghost" type="button">Limpiar</button>
+            </div>
+          </div>
+          <div id="log" class="log" aria-live="polite"></div>
+        </section>
+
+        <footer class="footer">
+          <p>
+            Experimento no oficial. No está afiliado a Mojang, Microsoft ni al proyecto Prism Launcher.
+            Minecraft requiere una licencia válida; WebPrism no redistribuye el cliente ni los assets.
+            CheerpJ es software de Leaning Technologies sujeto a sus términos.
+          </p>
+        </footer>
+      </section>
+    </main>
+
+    <noscript>WebPrism necesita JavaScript, WebAssembly, OPFS y Service Workers.</noscript>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
